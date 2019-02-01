@@ -49,6 +49,10 @@ vector<string> find_tables(int argc,char *argv[],int f = 1)
 			{
 				break;
 			}	
+			if(temp == "distinct" && f == 2)
+			{
+				continue;
+			}
 			for(int j = 0; j< temp.size();j++)
 			{
 				if(temp[j] == ',' && j+1 == temp.size())
@@ -143,7 +147,7 @@ void read_metadata(map <string,int> &table_id,map <string,string> &attr,vector<v
 			std::map<string, string>::iterator it = attr.find(line); 
 			if (it != attr.end()) 
 			{
-				 it->second = "0";				 
+				 it->second = "**";				 
 			}
 			else
 			{
@@ -180,7 +184,7 @@ vector<string> divide_row(string row)
 	return row_elem;
 }
 
-string extract_col(string col_name, string tab_name)
+string extract_col(string col_name, string &tab_name)
 {
 	if(col_name == "*")
 	{
@@ -189,6 +193,9 @@ string extract_col(string col_name, string tab_name)
 
 	string tab[2];
 	int k = 0;
+	tab[0] = "";
+	tab[1] = "";
+	tab_name = "**";
 
 	for(int i = 0;i<col_name.size();i++)
 	{
@@ -207,28 +214,19 @@ string extract_col(string col_name, string tab_name)
 	}
 	else
 	{
-		// cout<<tab[0]<<" "<<tab[1]<<" "<<tab_name<<"\n";
-		if(tab[0] == tab_name)
-		{
-			return tab[1] + "*";
-
-		}
-		else
-		{
-			return "**";
-		}
+		tab_name = tab[0];
+		return tab[1];
 	}
 
 	 
 }
 
 vector<vector<string>> output;
+vector<vector<string>> final_output(1024);
 int join_print_tables(vector<string> &tab_name,vector<string> &col_name,vector<string> &line,map <string,string> &attr,vector<vector<string> > &table_attr, int i, int n)
 {
 	if(i==n)
 	{
-		// for(int j= 0; j< line.size();j++)
-		// 	cout<<line[j]<<" : ";
 		output.push_back(line);
 		return 0;
 
@@ -246,92 +244,711 @@ int join_print_tables(vector<string> &tab_name,vector<string> &col_name,vector<s
 		int size_count = 0;
 		row_elem = divide_row(row);
 
-		for(int x = 0; x < col_name.size() ; x++)
-		{
-			print_col = extract_col(col_name[x],tab_name[i]);
-			if(print_col == "*")
-			{
-				line.insert(line.end(), row_elem.begin(), row_elem.end());
-				size_count += row_elem.size();
-			}
-			else if(print_col == "**")
-			{
-				continue;
-			}
-			else if(print_col[print_col.size() - 1] == '*')
-			{
-				print_col.pop_back();
-				int y,flag = 0;
-				for(y =0 ; y< table_attr[i].size();y++)
-				{
-					if(table_attr[i][y] == print_col)
-					{
-						flag  = 1;
-						break;
-					}
-				}
-				if(flag == 0)
-				{
-					cout<<"Error : attribute not found";
-					return -1;
-				}
-				else
-				{
-					line.push_back(row_elem[y]);
-					size_count++;	
-				}
-
-			}
-			else
-			{
-				std::map<string, string>::iterator it = attr.find(print_col); 
-				if (it != attr.end()) 
-				{
-					if(it->second == tab_name[i])
-					{
-						int y,flag = 0;
-						for(y =0 ; y< table_attr[i].size();y++)
-						{
-							if(table_attr[i][y] == print_col)
-							{
-								flag  = 1;
-								break;
-							}
-						}
-						if(flag == 0)
-						{
-							cout<<"Error : attribute not found";
-							return -1;
-						}
-						else
-						{
-							line.push_back(row_elem[y]);
-							size_count++;	
-						}
-					}
-				}
-				else
-				{
-					cout<<"Error : attribute not found";
-					return -1;
-				}
-
-			}	
-
-		}
-
+		line.insert(line.end(), row_elem.begin(), row_elem.end());
+		size_count = row_elem.size();
 
 		if(join_print_tables(tab_name,col_name,line,attr,table_attr,i+1,n) == -1)
 		{
 			return -1;
 		}
-		for(int k = 0 ; k< size_count	;k++)
+		for(int k = 0 ; k< size_count ; k++)
 		{
 			line.pop_back();
 		}
 	}
 
 	return 0;
+}
+string check_condition(string cond,string (&cond_var)[2])
+{
+	string cond_op;
+	int j = 0;
+
+	for(int i =0 ; i<cond.size() ; i++)
+	{
+		if(cond[i] == '=')
+		{
+			cond_op = '=';
+			j++;
+		}
+		else if(cond[i] == '>')
+		{
+			cond_op = '>';
+			j++;
+			if(cond[i+1] == '=')
+			{
+				cond_op = ">=";
+				i++;
+			}
+		}
+		else if(cond[i] == '<')
+		{
+			cond_op = '<';
+			j++;
+			if(cond[i+1] == '=')
+			{
+				cond_op = "<=";
+				i++;
+			}
+		}
+		else
+		{
+			cond_var[j].push_back(cond[i]);
+		}
+	}
+
+	if(j>1)
+	{
+		return "**";
+	}
+	else
+	{
+		return cond_op;
+	}
+
+}
+bool check_condition(int a,int b,string cond_op)
+{
+	if(cond_op == "=")
+	{
+		if(a==b)
+			return true;
+		else 
+			return false;
+	}
+	if(cond_op == "<")
+	{
+		if(a<b)
+			return true;
+		else 
+			return false;
+	}
+	if(cond_op == ">")
+	{
+		if(a>b)
+			return true;
+		else 
+			return false;
+	}
+	if(cond_op == "<=")
+	{
+		if(a<=b)
+			return true;
+		else 
+			return false;
+	}
+	if(cond_op == ">=")
+	{
+		if(a>=b)
+			return true;
+		else 
+			return false;
+	}
+
+
+}
+
+int final_print(vector<string> &tab_name,vector<string> &col_name,map <string,string> &attr,vector<vector<string> > &table_attr, vector<string> table_head , string cond_type, string (&cond)[2])
+{
+	string print_col;
+	for(int i = 0 ; i < output.size() ; i++)
+	{
+		string cond_op,cond_var[2],restricted[2];
+		if(cond_type == "*")
+		{
+			cout<<"No Condition";
+		}
+		else
+		{
+			// cout<<"One Condition";
+			long val[2];
+			cond_op = check_condition(cond[0],cond_var);
+			if(cond_op == "**")
+			{
+				cout<<"Error : Too many operators";
+				return 0;
+			}
+			else
+			{
+				// cout<<cond_op<<" "<<cond_var[0]<<" "<<cond_var[1]<<"\n";
+				char *p,*q;
+				
+				int fl = 0;
+				val[0] = strtol(cond_var[0].c_str(), &p, 10);
+				if (*p)
+				{
+					string find_col, tb;
+					fl = 1;
+					find_col = extract_col(cond_var[0],tb);
+
+					if(tb != "**")
+					{
+						std::map<string, string>::iterator it = attr.find(find_col); 
+						if (it != attr.end()) 
+						{
+							int j;
+							for(j = 0 ; j < table_head.size() ; j++)
+							{
+								if(table_head[j] == cond_var[0])
+								{
+									// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+									val[0] = strtol(output[i][j].c_str(), &q, 10);
+									if (*q)
+									{
+										cout<<"Data type error :";
+										return 0;
+									}
+									
+									break;
+								}
+							}
+
+							if( j == table_head.size())
+							{
+								cout<<"Column name error ";
+								return 0;
+							}
+						}
+						else
+						{
+							cout<<"Column name error ";
+							return 0;
+						}
+					}
+					else
+					{
+						std::map<string, string>::iterator it = attr.find(find_col); 
+						if (it != attr.end()) 
+						{
+							if(it->second == "**")
+							{
+								cout<<"Ambiguous column name ";
+								return 0;
+							} 	
+							else
+							{
+								find_col = it->second + "." + find_col;
+								int j;
+								for(j = 0 ; j < table_head.size() ; j++)
+								{
+									if(table_head[j] == find_col)
+									{
+										// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+										val[0] = strtol(output[i][j].c_str(), &q, 10);
+										if (*q)
+										{
+											cout<<"Data type error :";
+											return 0;
+										}
+										break;
+									}
+								}
+
+								if( j == table_head.size())
+								{
+									cout<<"Column name error";
+									return 0;
+								}
+							}
+						}
+						else
+						{
+							cout<<"Column name error";
+							return 0;
+						}
+					}
+			
+						
+				}
+				
+
+				val[1] = strtol(cond_var[1].c_str(), &p, 10);
+				if (*p)
+				{
+					string find_col, tb;	
+					find_col = extract_col(cond_var[1],tb);
+
+					
+					if(tb != "**")
+					{
+						std::map<string, string>::iterator it = attr.find(find_col); 
+						if (it != attr.end()) 
+						{
+							int j;
+							for(j = 0 ; j < table_head.size() ; j++)
+							{
+								if(table_head[j] == cond_var[1])
+								{
+									// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+									if(fl == 1)
+									{
+										restricted[0]=table_head[j];
+									}
+									val[1] = strtol(output[i][j].c_str(), &q, 10);
+									if (*q)
+									{
+										cout<<"Data type error :";
+										return 0;
+									}
+									break;
+								}
+							}
+
+							if( j == table_head.size())
+							{
+								cout<<"Column name error 1";
+								return 0;
+							}
+						}
+						else
+						{
+							cout<<"Column name error 2";
+							return 0;
+						}
+					}
+					else
+					{
+								
+						std::map<string, string>::iterator it = attr.find(find_col); 
+						if (it != attr.end()) 
+						{
+							if(it->second == "**")
+							{
+								cout<<"Ambiguous column name ";
+								return 0;
+							} 	
+							else
+							{
+								find_col = it->second + "." + find_col;
+								int j;
+								for(j = 0 ; j < table_head.size() ; j++)
+								{
+									if(table_head[j] == find_col)
+									{
+										// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+										if(fl == 1)
+										{
+											restricted[0]=table_head[j];
+										}
+										val[1] = strtol(output[i][j].c_str(), &q, 10);
+										if (*q)
+										{
+											cout<<"Data type error :";
+											return 0;
+										}
+										break;
+									}
+								}
+
+								if( j == table_head.size())
+								{
+									cout<<"Column name error";
+									return 0;
+								}
+							}
+						}
+						else
+						{
+							cout<<"Column name error";
+							return 0;
+						}
+					}
+
+
+			
+						
+				}
+				
+
+			}
+
+			bool return_val = check_condition(val[0],val[1],cond_op);
+
+			if(return_val == false && (cond_type=="and" || cond_type == "**"))
+			{
+				continue;
+			}
+			else if(return_val == true && (cond_type == "or" || cond_type == "**"))
+			{
+				// cout<<"True";
+			}
+			else
+			{
+
+				cond_var[0]="";
+				cond_var[1]="";
+				cond_op = check_condition(cond[1],cond_var);
+				// cout<<"cond_op = "<<cond_var[0]<<" "<<cond_var[1];
+				if(cond_op == "**")
+				{
+					cout<<"Error : Too many operators";
+					return 0;
+				}
+
+				else
+				{
+					// cout<<cond_op<<" "<<cond_var[0]<<" "<<cond_var[1]<<"\n";
+					char *p,*q;
+					
+					int fl = 0;
+					val[0] = strtol(cond_var[0].c_str(), &p, 10);
+					if (*p)
+					{
+						string find_col, tb;
+						fl = 1;
+						find_col = extract_col(cond_var[0],tb);
+						// cout<<"find_col = "<<find_col<<"\t\t"<<cond_var[0];
+						if(tb != "**")
+						{
+							std::map<string, string>::iterator it = attr.find(find_col); 
+							if (it != attr.end()) 
+							{
+								int j;
+								for(j = 0 ; j < table_head.size() ; j++)
+								{
+									if(table_head[j] == cond_var[0])
+									{
+										// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+										val[0] = strtol(output[i][j].c_str(), &q, 10);
+										if (*q)
+										{
+											cout<<"Data type error :";
+											return 0;
+										}
+										
+										break;
+									}
+								}
+
+								if( j == table_head.size())
+								{
+									cout<<"Column name error 1";
+									return 0;
+								}
+							}
+							else
+							{
+								cout<<"Column name error 21";
+								return 0;
+							}
+						}
+						else
+						{
+							std::map<string, string>::iterator it = attr.find(find_col); 
+							if (it != attr.end()) 
+							{
+								if(it->second == "**")
+								{
+									cout<<"Ambiguous column name ";
+									return 0;
+								} 	
+								else
+								{
+									find_col = it->second + "." + find_col;
+									int j;
+									for(j = 0 ; j < table_head.size() ; j++)
+									{
+										if(table_head[j] == find_col)
+										{
+											// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+											val[0] = strtol(output[i][j].c_str(), &q, 10);
+											if (*q)
+											{
+												cout<<"Data type error :";
+												return 0;
+											}
+											break;
+										}
+									}
+
+									if( j == table_head.size())
+									{
+										cout<<"Column name error";
+										return 0;
+									}
+								}
+							}
+							else
+							{
+								cout<<"Column name error";
+								return 0;
+							}
+						}
+				
+							
+					}
+					
+
+					val[1] = strtol(cond_var[1].c_str(), &p, 10);
+					if (*p)
+					{
+						string find_col, tb;	
+						find_col = extract_col(cond_var[1],tb);
+
+						
+						if(tb != "**")
+						{
+							std::map<string, string>::iterator it = attr.find(find_col); 
+							if (it != attr.end()) 
+							{
+								int j;
+								for(j = 0 ; j < table_head.size() ; j++)
+								{
+									if(table_head[j] == cond_var[1])
+									{
+										// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+										if(fl == 1)
+										{
+											restricted[0]=table_head[j];
+										}
+										val[1] = strtol(output[i][j].c_str(), &q, 10);
+										if (*q)
+										{
+											cout<<"Data type error :";
+											return 0;
+										}
+										break;
+									}
+								}
+
+								if( j == table_head.size())
+								{
+									cout<<"Column name error 1";
+									return 0;
+								}
+							}
+							else
+							{
+								cout<<"Column name error 22";
+								return 0;
+							}
+						}
+						else
+						{
+									
+							std::map<string, string>::iterator it = attr.find(find_col); 
+							if (it != attr.end()) 
+							{
+								if(it->second == "**")
+								{
+									cout<<"Ambiguous column name ";
+									return 0;
+								} 	
+								else
+								{
+									find_col = it->second + "." + find_col;
+									int j;
+									for(j = 0 ; j < table_head.size() ; j++)
+									{
+										if(table_head[j] == find_col)
+										{
+											// cout<<"yipieeeeeee "<<table_head[j]<<"  "<<output[i][j]<<"\t";
+											if(fl == 1)
+											{
+												restricted[0]=table_head[j];
+											}
+											val[1] = strtol(output[i][j].c_str(), &q, 10);
+											if (*q)
+											{
+												cout<<"Data type error :";
+												return 0;
+											}
+											break;
+										}
+									}
+
+									if( j == table_head.size())
+									{
+										cout<<"Column name error";
+										return 0;
+									}
+								}
+							}
+							else
+							{
+								cout<<"Column name error";
+								return 0;
+							}
+						}
+
+
+				
+							
+					}
+					
+
+				}
+				return_val = check_condition(val[0],val[1],cond_op);
+				// cout<<"return_val = "<<val[0]<<"\t"<<val[1]<<"\t"<<return_val<<"\n";
+				if(return_val== false)
+				{
+					continue;
+				}
+				else
+				{
+					// cout<<"trueeeee";
+				}
+
+			}
+
+		}
+		
+		for(int x = 0; x < col_name.size() ; x++)
+		{
+			string tab;
+			print_col = extract_col(col_name[x],tab);
+			if(print_col == "*")
+		 	{
+		 		for(int j = 0 ; j < output[i].size() ; j++)
+		 		{
+		 			if(table_head[j] == restricted[0])
+		 				continue;
+		 			cout<<output[i][j]<<"\t";
+		 			final_output[i].push_back(output[i][j]);
+		 		} 
+		 	}
+		 	else if(tab == "**")
+		 	{
+		 		std::map<string, string>::iterator it = attr.find(print_col); 
+				if (it != attr.end()) 
+				{
+					if(it->second == "**")
+					{
+						cout<<"Ambiguous column name ";
+						return 0;
+					} 	
+					else
+					{
+						print_col = it->second + "." + print_col;
+						int j;
+						for(j = 0 ; j < table_head.size() ; j++)
+						{
+							if(table_head[j] == print_col)
+							{
+								cout<<output[i][j]<<"\t";
+								final_output[i].push_back(output[i][j]);
+								break;
+							}
+						}
+
+						if( j == table_head.size())
+						{
+							cout<<"Column name error";
+							return 0;
+						}
+					}
+				}
+				else
+				{
+					cout<<"Column name error";
+					return 0;
+				}		
+		 	}
+		 	else
+		 	{
+		 		std::map<string, string>::iterator it = attr.find(print_col); 
+				if (it != attr.end()) 
+				{
+					int j;
+					for(j = 0 ; j < table_head.size() ; j++)
+					{
+						if(table_head[j] == col_name[x])
+						{
+							cout<<output[i][j]<<"\t";
+							final_output[i].push_back(output[i][j]);
+							break;
+						}
+					}
+
+					if( j == table_head.size())
+					{
+						cout<<"Column name error";
+						return 0;
+					}
+				}
+				else
+				{
+					cout<<"Column name error";
+					return 0;
+				}
+		 	}
+		}
+		cout<<"\n";		
+	}
+
+	return 1;
+}
+
+vector<string> find_table_head(vector<string> &tab_name,vector<vector<string> > &table_attr)
+{
+	vector<string> table_head;
+	string temp;
+	for(int i = 0; i < tab_name.size() ; i++)
+	{
+		
+		for(int j = 0 ; j < table_attr[i].size() ; j++)
+		{
+			temp = tab_name[i] + "." + table_attr[i][j];
+			table_head.push_back(temp); 
+		}
+	}
+
+	return table_head;
+}
+
+string find_cond(int argc,char *argv[],string (&cond)[2])
+{
+	string temp,cond_type;
+	cond_type = "*";
+	int flag =0;
+	for(int i =1 ; i<argc;i++)
+	{
+		if(icmp(argv[i],"and")== true)
+		{
+			if(flag == 1)
+			{
+				flag = 2;
+				cond_type = "and";
+				continue;
+			}
+			else
+			{
+				cout<<"Missplaced and error \n";
+				return "***";
+			}
+
+		}
+		if(icmp(argv[i],"or")== true)
+		{
+			if(flag == 1)
+			{
+				flag = 2;
+				cond_type = "or";
+				continue;
+			}
+			else
+			{
+				cout<<"Missplaced or error \n";
+				return "***";
+			}
+		}
+		if (flag != 0)
+		{
+			temp = argv[i];
+			cond[flag-1].append(temp);
+		}
+		else
+		{
+			if(icmp(argv[i],"where")== true)
+			{
+				cond_type = "**";
+				flag = 1;
+			}
+			
+		}
+	}
+
+	return cond_type;	
 }
 
 
@@ -345,7 +962,9 @@ int main(int argc, char *argv[])
 	int no_of_tables;
 	vector<string> tab_name;				//list of all tables
 	vector<string> col_name;				//list of columns to print
+	vector<string> table_head;				//header for cross-product table
 
+	string cond_type, cond[2];
 
 	fstream file[64];
 		
@@ -403,14 +1022,81 @@ int main(int argc, char *argv[])
 		vector<string> line;
 		join_print_tables(tab_name,col_name,line,attr,table_attr,0,tab_name.size());
 
+		table_head = find_table_head(tab_name,table_attr);
+
+		for(int i = 0,j; i < output.size() ; i++)
+			cout<<table_head[i]<<" : ";
+		
+		cout<<"\n";
+
+		cond_type = find_cond(argc,argv,cond);
+
+		if(cond_type == "***")
+			return 0;
+
+		cout<<"cond = "<<cond_type<<" "<<cond[0]<<" "<<cond[1]<<"\n";
+
+		int ret_val;
+
+		ret_val = final_print(tab_name,col_name,attr,table_attr,table_head,cond_type,cond);
+
+		if(ret_val == 0)
+		{
+			return 0;
+		}
+
+		cout<<"\n";
+
+		int distinct = 0,cp = 2;
+
+		string agg,subs;
+
+		if(icmp(argv[2],"distinct"))
+		{
+			distinct = 1;
+		}
+
+		if(distinct == 1)
+		{
+			cp++;
+		}
+
+		if()
+
+
+		
 		for(int i = 0,j; i < output.size() ; i++)
 		{
-			for(j = 0 ; j < output[i].size()-1;j++)
-			{
-				cout<<output[i][j]<<":";
+			int flag = 1;
+			if(distinct == 1)
+			{	
+				for(int k = 0;k<i;k++)
+				{	
+					flag = 0;
+					for (int l = 0;l <final_output[k].size();l++)
+					{
+						if(final_output[i][l] != final_output[k][l])
+						{
+							flag =1;
+							break;
+						}
+					}
+					if(flag == 0)
+						break;
+				}
 			}
-			cout<<output[i][j]<<"\n";
+
+			if(flag == 0)
+				continue;
+
+			for(j = 0 ; j < final_output[i].size()-1;j++)
+			{
+				cout<<final_output[i][j]<<"\t";
+			}
+			cout<<final_output[i][j]<<"\n";
 		}
+
+		
 
 
 	}
